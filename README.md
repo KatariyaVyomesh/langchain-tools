@@ -77,3 +77,52 @@ if response.tool_calls:
     print("🔧 Tool Result:", result)
 else:
     print("💬 Model Answer:", response.content)
+
+
+```
+
+## 💽 Example 2: Vector Store Retriever Tool (RAG)
+The VectorStoreRetrieverTool allows your LLM to search semantically across embedded data and retrieve the most relevant chunks — enabling Retrieval-Augmented Generation (RAG).
+
+```python
+from langchain.chat_models import ChatOpenAI
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_core.tools import Tool
+from langchain_core.documents import Document
+
+# 1️⃣ Prepare sample documents
+docs = [
+    Document(page_content="LangChain is a powerful library for building LLM applications."),
+    Document(page_content="Vector stores help in storing and retrieving embeddings efficiently."),
+    Document(page_content="Retrieval-Augmented Generation (RAG) combines LLMs with external knowledge.")
+]
+
+# 2️⃣ Create embeddings and vector store
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vectorstore = FAISS.from_documents(docs, embeddings)
+
+# 3️⃣ Convert vectorstore to retriever tool
+retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 2})
+retriever_tool = Tool(
+    name="VectorStoreRetrieverTool",
+    description="Retrieve information from an embedded document store using semantic similarity.",
+    func=lambda q: retriever.invoke(q)
+)
+
+# 4️⃣ Initialize model & bind retriever tool
+model = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.0)
+model_with_tools = model.bind_tools([retriever_tool])
+
+# 5️⃣ Ask a question
+query = "What is LangChain used for?"
+response = model_with_tools.invoke({"messages": [{"role": "user", "content": query}]})
+
+# 6️⃣ Execute tool if called
+if response.tool_calls:
+    tool_call = response.tool_calls[0]
+    tool_args = tool_call["args"]
+    result = retriever_tool.invoke(tool_args)
+    print("🔍 Retrieved Docs:", result)
+else:
+    print("💬 Model Answer:", response.content)
